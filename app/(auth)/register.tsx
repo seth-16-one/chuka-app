@@ -22,7 +22,7 @@ import { FormScrollProvider } from '@/components/ui/form-scroll-context';
 import { Input } from '@/components/ui/input';
 import { OTPModal } from '@/components/ui/otp-modal';
 import { registerStudent } from '@/services/auth';
-import apiClient from '@/services/api-client';
+import apiClientService from '@/services/api-client';
 import { buildPasswordChecklist } from '@/services/password-rules';
 
 function hasAtLeastTwoNames(value: string) {
@@ -69,6 +69,8 @@ export default function RegisterScreen() {
   const [otpChallengeId, setOtpChallengeId] = useState('');
   const [otpEmail, setOtpEmail] = useState('');
   const [otpDemoCode, setOtpDemoCode] = useState<string | undefined>();
+  const [otpError, setOtpError] = useState<string | undefined>();
+  const [otpResendLoading, setOtpResendLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     status: 'success' | 'error';
     message: string;
@@ -159,7 +161,7 @@ export default function RegisterScreen() {
 
     const timer = setTimeout(() => {
       setFeedback(null);
-    }, feedback.status === 'success' ? 1500 : 1900);
+    }, feedback.status === 'success' ? 350 : 1900);
 
     return () => clearTimeout(timer);
   }, [feedback, opacity, scale, shake]);
@@ -192,7 +194,7 @@ export default function RegisterScreen() {
         throw new Error('Password and confirm password do not match.');
       }
 
-      const request = await apiClient.sendOTP(email.trim(), 'registration');
+      const request = await apiClientService.sendOTP(email.trim(), 'registration');
 
       pendingRegistration.current = {
         fullName: fullName.trim(),
@@ -205,6 +207,7 @@ export default function RegisterScreen() {
       setOtpChallengeId(request.challengeId);
       setOtpEmail(email.trim());
       setOtpDemoCode(request.otpCode);
+      setOtpError(undefined);
       setOtpVisible(true);
     } catch (error) {
       setFeedback({
@@ -247,7 +250,7 @@ export default function RegisterScreen() {
 
       setTimeout(() => {
         router.replace('/login');
-      }, 1200);
+      }, 350);
     } finally {
       setLoading(false);
     }
@@ -258,9 +261,17 @@ export default function RegisterScreen() {
       return;
     }
 
-    const request = await apiClient.sendOTP(otpEmail, 'registration');
-    setOtpChallengeId(request.challengeId);
-    setOtpDemoCode(request.otpCode);
+    try {
+      setOtpResendLoading(true);
+      setOtpError(undefined);
+      const request = await apiClientService.sendOTP(otpEmail, 'registration');
+      setOtpChallengeId(request.challengeId);
+      setOtpDemoCode(request.otpCode);
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : 'Failed to resend verification code.');
+    } finally {
+      setOtpResendLoading(false);
+    }
   }
 
   function handleCancelRegistrationOtp() {
@@ -268,6 +279,7 @@ export default function RegisterScreen() {
     setOtpChallengeId('');
     setOtpEmail('');
     setOtpDemoCode(undefined);
+    setOtpError(undefined);
     pendingRegistration.current = null;
   }
 
@@ -361,6 +373,8 @@ export default function RegisterScreen() {
           onCancel={handleCancelRegistrationOtp}
           onResend={handleResendRegistrationOtp}
           loading={loading}
+          resendLoading={otpResendLoading}
+          error={otpError}
           demoOTP={otpDemoCode}
           title="Verify registration"
           description="Enter the code sent to"
@@ -395,7 +409,7 @@ export default function RegisterScreen() {
               </View>
             </View>
 
-            <View className="px-5 py-6 flex-1">
+            <View className="px-5 py-6">
               <Card className="rounded-[34px] px-6 py-6 shadow-lg">
                 <View className="gap-5">
                   <View className="gap-2">

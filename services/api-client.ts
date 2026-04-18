@@ -19,10 +19,14 @@ class APIClient {
       method?: RequestMethod;
       body?: Record<string, unknown>;
       params?: Record<string, string | number | undefined>;
+      timeoutMs?: number;
     } = {}
   ): Promise<T> {
     const token = await safeStorage.getItem(TOKEN_KEY);
     const url = new URL(`${API_BASE_URL}${path}`);
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs ?? 15000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     Object.entries(options.params ?? {}).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -30,40 +34,47 @@ class APIClient {
       }
     });
 
-    let response: Response;
     try {
-      response = await fetch(url.toString(), {
+      const response = await fetch(url.toString(), {
         method: options.method ?? 'GET',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
       });
-    } catch {
-      const apiHost = API_BASE_URL.replace(/\/api\/?$/, '');
-      throw new Error(
-        `Network error. The app could not reach the backend at ${apiHost}. Please confirm the backend is live, then restart Expo.`
-      );
-    }
+      const data = await response.json().catch(() => ({}));
 
-    const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401) {
+          await safeStorage.removeItem(TOKEN_KEY);
+        }
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        await safeStorage.removeItem(TOKEN_KEY);
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : typeof data?.message === 'string'
+              ? data.message
+              : `Request failed with status ${response.status}`;
+        throw new Error(message);
       }
 
-      const message =
-        typeof data?.error === 'string'
-          ? data.error
-          : typeof data?.message === 'string'
-            ? data.message
-            : `Request failed with status ${response.status}`;
-      throw new Error(message);
-    }
+      return data as T;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error('Request timed out. Please check your connection and try again.');
+      }
 
-    return data as T;
+      const apiHost = API_BASE_URL.replace(/\/api\/?$/, '');
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : `Network error. The app could not reach the backend at ${apiHost}. Please confirm the backend is live, then restart Expo.`
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async sendOTP(
@@ -73,6 +84,7 @@ class APIClient {
     return this.request('/otp/request', {
       method: 'POST',
       body: { email, purpose },
+      timeoutMs: 12000,
     });
   }
 
@@ -85,6 +97,7 @@ class APIClient {
     return this.request('/otp/verify', {
       method: 'POST',
       body: { email, challengeId, code, purpose },
+      timeoutMs: 12000,
     });
   }
 
