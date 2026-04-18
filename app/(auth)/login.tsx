@@ -20,7 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FormScrollProvider } from '@/components/ui/form-scroll-context';
 import { Input } from '@/components/ui/input';
-import { createDemoSession, getDashboardPath, signIn } from '@/services/auth';
+import apiClientService from '@/services/api-client';
+import { createSessionFromTokens, getDashboardPath, toUserProfile } from '@/services/auth';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function LoginScreen() {
@@ -51,9 +52,15 @@ export default function LoginScreen() {
   async function handleLogin() {
     try {
       setLoading(true);
-      const profile = await signIn(identifier, password);
+      const usernameOrEmail = identifier.trim();
+      if (!usernameOrEmail || !password.trim()) {
+        throw new Error('Please enter your username/email and password.');
+      }
+
+      const response = await apiClientService.login(usernameOrEmail, password.trim());
+      const profile = toUserProfile(response.user);
       const next = getDashboardPath(profile.role ?? 'student');
-      const session = createDemoSession(profile);
+      const session = createSessionFromTokens(profile, response.token, response.refreshToken);
 
       pendingAuth.current = { session, profile, next };
       setFeedback({

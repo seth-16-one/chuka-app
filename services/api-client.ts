@@ -25,7 +25,7 @@ class APIClient {
     const token = await safeStorage.getItem(TOKEN_KEY);
     const url = new URL(`${API_BASE_URL}${path}`);
     const controller = new AbortController();
-    const timeoutMs = options.timeoutMs ?? 15000;
+    const timeoutMs = options.timeoutMs ?? 10000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     Object.entries(options.params ?? {}).forEach(([key, value]) => {
@@ -84,7 +84,7 @@ class APIClient {
     return this.request('/otp/request', {
       method: 'POST',
       body: { email, purpose },
-      timeoutMs: 12000,
+      timeoutMs: 10000,
     });
   }
 
@@ -97,8 +97,54 @@ class APIClient {
     return this.request('/otp/verify', {
       method: 'POST',
       body: { email, challengeId, code, purpose },
-      timeoutMs: 12000,
+      timeoutMs: 10000,
     });
+  }
+
+  async requestLoginOtp(
+    usernameOrEmail: string,
+    password: string,
+    expectedRole?: string,
+    channel: string = 'email'
+  ): Promise<{
+    success: boolean;
+    challengeId: string;
+    email: string;
+    channel: string;
+    availableChannels?: string[];
+    destinationMasked?: string;
+    expiresInMinutes: number;
+    message: string;
+    otpCode?: string;
+  }> {
+    return this.request('/login-otp/request', {
+      method: 'POST',
+      body: {
+        usernameOrEmail,
+        username: usernameOrEmail,
+        password,
+        expectedRole,
+        channel,
+      },
+      timeoutMs: 10000,
+    });
+  }
+
+  async verifyLoginOtp(
+    challengeId: string,
+    code: string
+  ): Promise<{ token: string; refreshToken: string; user: any }> {
+    const data = await this.request<{ token: string; refreshToken: string; user: any }>('/login-otp/verify', {
+      method: 'POST',
+      body: { challengeId, code },
+      timeoutMs: 10000,
+    });
+
+    if (data.token) {
+      await safeStorage.setItem(TOKEN_KEY, data.token);
+    }
+
+    return data;
   }
 
   async register(
@@ -130,7 +176,7 @@ class APIClient {
     identifier: string,
     password: string
   ): Promise<{ token: string; refreshToken: string; user: any }> {
-    const data = await this.request<{ token: string; refreshToken: string; user: any }>('/auth/login', {
+    const data = await this.request<{ token: string; refreshToken: string; user: any }>('/login', {
       method: 'POST',
       body: { identifier, password },
     });

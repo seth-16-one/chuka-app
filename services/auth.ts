@@ -1,26 +1,12 @@
 import { Session, User } from '@supabase/supabase-js';
-import apiClient from './api-client';
+import apiClientService from './api-client';
 import { UserProfile } from './types';
 
 export function getDashboardPath(_role: UserProfile['role']) {
   return '/dashboard';
 }
 
-export function createDemoSession(profile: UserProfile): Session {
-  return {
-    access_token: 'backend-session',
-    refresh_token: 'backend-refresh',
-    expires_in: 3600,
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
-    token_type: 'bearer',
-    user: {
-      id: profile.id,
-      email: profile.email,
-    } as User,
-  };
-}
-
-function mapApiUser(user: any): UserProfile {
+export function toUserProfile(user: any): UserProfile {
   return {
     id: user.id,
     fullName: user.fullName,
@@ -35,9 +21,39 @@ function mapApiUser(user: any): UserProfile {
   };
 }
 
+export function createSessionFromTokens(
+  profile: UserProfile,
+  accessToken: string,
+  refreshToken: string
+): Session {
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer',
+    user: {
+      id: profile.id,
+      email: profile.email,
+      } as User,
+  };
+}
+
 export async function signIn(identifier: string, password: string): Promise<UserProfile> {
-  const response = await apiClient.login(identifier, password);
-  return mapApiUser(response.user);
+  const response = await apiClientService.login(identifier, password);
+  return toUserProfile(response.user);
+}
+
+export async function requestLoginOtp(
+  usernameOrEmail: string,
+  password: string,
+  expectedRole?: string
+) {
+  return apiClientService.requestLoginOtp(usernameOrEmail, password, expectedRole);
+}
+
+export async function verifyLoginOtp(challengeId: string, code: string) {
+  return apiClientService.verifyLoginOtp(challengeId, code);
 }
 
 export async function registerStudent(input: {
@@ -50,7 +66,7 @@ export async function registerStudent(input: {
   otpCode?: string;
 }) {
   try {
-    const response = await apiClient.register(
+    const response = await apiClientService.register(
       input.email,
       input.password,
       input.fullName,
@@ -62,7 +78,7 @@ export async function registerStudent(input: {
     );
 
     const user = response.user;
-    return mapApiUser(user) satisfies UserProfile;
+    return toUserProfile(user) satisfies UserProfile;
   } catch (error) {
     throw error;
   }
@@ -70,7 +86,7 @@ export async function registerStudent(input: {
 
 export async function signOut() {
   try {
-    await apiClient.logout();
+    await apiClientService.logout();
   } catch (error) {
     throw error;
   }
