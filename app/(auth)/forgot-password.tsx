@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+import { AppAlertModal } from '@/components/ui/app-alert-modal';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { BrandMark } from '@/components/ui/brand-mark';
@@ -36,6 +37,18 @@ export default function ForgotPasswordScreen() {
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
+
+  function resetResetForm() {
+    setIdentifier('');
+    setLinkedEmail('');
+    setChallengeId('');
+    setEnteredCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setResendLoading(false);
+  }
 
   const step = challengeId ? 2 : 1;
 
@@ -113,6 +126,7 @@ export default function ForgotPasswordScreen() {
 
     const timer = setTimeout(() => {
       if (feedback.status === 'success') {
+        resetResetForm();
         router.replace('/login');
       }
       setFeedback(null);
@@ -162,6 +176,7 @@ export default function ForgotPasswordScreen() {
 
       setLoading(true);
       await backendApi.confirmPasswordReset(linkedEmail, challengeId, enteredCode.trim(), newPassword);
+      resetResetForm();
       setFeedback({
         status: 'success',
         message: 'Password reset successful. Returning to login.',
@@ -209,79 +224,18 @@ export default function ForgotPasswordScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
         className="flex-1">
-        <Modal transparent visible={Boolean(feedback)} animationType="fade" statusBarTranslucent>
-          <View className="flex-1 items-center justify-center bg-black/45 px-5">
-            <Animated.View
-              style={{
-                opacity,
-                transform: [
-                  { scale },
-                  { translateX: shake },
-                  {
-                    translateY: pulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [8, 0],
-                    }),
-                  },
-                ],
-              }}
-              className="w-full max-w-sm">
-              <View
-                style={{
-                  backgroundColor:
-                    feedback?.status === 'success'
-                      ? isDark
-                        ? '#0d1b11'
-                        : '#eef7ef'
-                      : isDark
-                        ? '#2a1111'
-                        : '#fff0f0',
-                  borderColor:
-                    feedback?.status === 'success'
-                      ? isDark
-                        ? '#2b5137'
-                        : '#b7e2b7'
-                      : isDark
-                        ? '#6e2c2c'
-                        : '#f3bcbc',
-                }}
-                className="overflow-hidden rounded-[34px] border px-6 py-8 shadow-soft">
-                <View className="items-center">
-                  <Animated.View
-                    style={{
-                      width: 92,
-                      height: 92,
-                      borderRadius: 999,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      backgroundColor: feedback?.status === 'success' ? '#006400' : '#b91c1c',
-                      transform: [
-                        {
-                          scale: pulse.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.98, 1.04],
-                          }),
-                        },
-                      ],
-                    }}>
-                    <MaterialCommunityIcons
-                      name={feedback?.status === 'success' ? 'check' : 'close'}
-                      size={46}
-                      color="#ffffff"
-                    />
-                  </Animated.View>
-
-                  <Text style={{ color: isDark ? '#ffffff' : '#1A1A1A' }} className="mt-6 text-center text-2xl font-bold">
-                    {feedback?.status === 'success' ? 'Password updated' : 'Reset failed'}
-                  </Text>
-                  <Text style={{ color: isDark ? '#d8e6db' : '#4f6655' }} className="mt-3 text-center text-base leading-6">
-                    {feedback?.message}
-                  </Text>
-                </View>
-              </View>
-            </Animated.View>
-          </View>
-        </Modal>
+        <AppAlertModal
+          visible={Boolean(feedback)}
+          title={feedback?.status === 'success' ? 'Password updated' : 'Reset failed'}
+          message={feedback?.message || ''}
+          icon={feedback?.status === 'success' ? 'check' : 'close'}
+          iconTone={feedback?.status === 'success' ? 'success' : 'error'}
+          confirmLabel={feedback?.status === 'success' ? 'Great' : 'Okay'}
+          confirmVariant={feedback?.status === 'success' ? 'primary' : 'danger'}
+          onConfirm={() => setFeedback(null)}
+          onCancel={() => setFeedback(null)}
+          showActions
+        />
 
         <FormScrollProvider scrollRef={scrollRef} extraOffset={120}>
           <ScrollView
@@ -433,7 +387,15 @@ export default function ForgotPasswordScreen() {
                     </>
                   ) : null}
 
-                  <Button title="Back to login" variant="secondary" onPress={() => router.replace('/login')} disabled={loading} />
+                  <Button
+                    title="Back to login"
+                    variant="secondary"
+                    onPress={() => {
+                      resetResetForm();
+                      router.replace('/login');
+                    }}
+                    disabled={loading}
+                  />
                 </View>
               </Card>
             </View>

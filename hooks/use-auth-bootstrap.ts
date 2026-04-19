@@ -101,10 +101,6 @@ export function useAuthBootstrap() {
           setHydrated(true);
           return;
         }
-        const currentState = useAuthStore.getState();
-        if (!currentState.session || !currentState.profile) {
-          clearAuth();
-        }
         setHydrated(true);
       });
 

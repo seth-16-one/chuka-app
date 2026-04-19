@@ -18,8 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { AppAlertModal } from '@/components/ui/app-alert-modal';
 import { FormScrollProvider } from '@/components/ui/form-scroll-context';
 import { Input } from '@/components/ui/input';
+import { OTPModal } from '@/components/ui/otp-modal';
 import apiClientService from '@/services/api-client';
 import { createSessionFromTokens, getDashboardPath, toUserProfile } from '@/services/auth';
 import { useAuthStore } from '@/store/auth-store';
@@ -33,6 +35,13 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [otpVisible, setOtpVisible] = useState(false);
+  const [otpNoticeVisible, setOtpNoticeVisible] = useState(false);
+  const [otpChallengeId, setOtpChallengeId] = useState('');
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpDemoCode, setOtpDemoCode] = useState<string | undefined>();
+  const [otpError, setOtpError] = useState<string | undefined>();
+  const [otpResendLoading, setOtpResendLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     status: 'success' | 'error';
     message: string;
@@ -48,6 +57,24 @@ export default function LoginScreen() {
   const entrance = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView | null>(null);
+  const otpNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function resetLoginForm() {
+    setIdentifier('');
+    setPassword('');
+    setShowPassword(false);
+    setOtpVisible(false);
+    setOtpNoticeVisible(false);
+    setOtpChallengeId('');
+    setOtpEmail('');
+    setOtpDemoCode(undefined);
+    setOtpError(undefined);
+    setOtpResendLoading(false);
+    if (otpNoticeTimer.current) {
+      clearTimeout(otpNoticeTimer.current);
+      otpNoticeTimer.current = null;
+    }
+  }
 
   async function handleLogin() {
     try {
@@ -57,16 +84,12 @@ export default function LoginScreen() {
         throw new Error('Please enter your username/email and password.');
       }
 
-      const response = await apiClientService.login(usernameOrEmail, password.trim());
-      const profile = toUserProfile(response.user);
-      const next = getDashboardPath(profile.role ?? 'student');
-      const session = createSessionFromTokens(profile, response.token, response.refreshToken);
-
-      pendingAuth.current = { session, profile, next };
-      setFeedback({
-        status: 'success',
-        message: 'Login successful. Preparing your university workspace.',
-      });
+      const request = await apiClientService.requestLoginOtp(usernameOrEmail, password.trim());
+      setOtpChallengeId(request.challengeId);
+      setOtpEmail(request.email || usernameOrEmail);
+      setOtpDemoCode(request.otpCode);
+      setOtpError(undefined);
+      setOtpNoticeVisible(true);
     } catch (error) {
       setFeedback({
         status: 'error',
@@ -76,6 +99,28 @@ export default function LoginScreen() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!otpNoticeVisible) {
+      return;
+    }
+
+    if (otpNoticeTimer.current) {
+      clearTimeout(otpNoticeTimer.current);
+    }
+
+    otpNoticeTimer.current = setTimeout(() => {
+      setOtpNoticeVisible(false);
+      setOtpVisible(true);
+    }, 850);
+
+    return () => {
+      if (otpNoticeTimer.current) {
+        clearTimeout(otpNoticeTimer.current);
+        otpNoticeTimer.current = null;
+      }
+    };
+  }, [otpNoticeVisible]);
 
   useEffect(() => {
     Animated.parallel([
@@ -144,20 +189,61 @@ export default function LoginScreen() {
     }
 
     const timer = setTimeout(() => {
-      if (feedback.status === 'success' && pendingAuth.current) {
-        setAuth(pendingAuth.current.session, pendingAuth.current.profile);
-        const next = pendingAuth.current.next;
-        pendingAuth.current = null;
-        setFeedback(null);
-        router.replace(next as never);
-        return;
-      }
-
       setFeedback(null);
     }, feedback.status === 'success' ? 350 : 1700);
 
     return () => clearTimeout(timer);
   }, [feedback, opacity, router, scale, setAuth, shake]);
+
+  async function handleVerifyLoginOtp(otpCode: string) {
+    try {
+      setLoading(true);
+      const response = await apiClientService.verifyLoginOtp(otpChallengeId, otpCode);
+      const profile = toUserProfile(response.user);
+      const next = getDashboardPath(profile.role ?? 'student');
+      const session = createSessionFromTokens(profile, response.token, response.refreshToken);
+
+      setAuth(session, profile);
+      pendingAuth.current = { session, profile, next };
+      resetLoginForm();
+      setOtpVisible(false);
+      setFeedback({
+        status: 'success',
+        message: 'Login successful. Preparing your university workspace.',
+      });
+
+      requestAnimationFrame(() => {
+        router.replace(next as never);
+      });
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : 'Invalid verification code');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendLoginOtp() {
+    if (!otpEmail || !password.trim()) {
+      return;
+    }
+
+    try {
+      setOtpResendLoading(true);
+      setOtpError(undefined);
+      const request = await apiClientService.requestLoginOtp(otpEmail, password.trim());
+      setOtpChallengeId(request.challengeId);
+      setOtpDemoCode(request.otpCode);
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : 'Failed to resend verification code.');
+    } finally {
+      setOtpResendLoading(false);
+    }
+  }
+
+  function handleCancelLoginOtp() {
+    resetLoginForm();
+  }
 
   return (
     <SafeAreaView
@@ -168,83 +254,46 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
         className="flex-1">
-        <Modal transparent visible={Boolean(feedback)} animationType="fade" statusBarTranslucent>
-          <View className="flex-1 items-center justify-center bg-black/45 px-5">
-            <Animated.View
-              style={{
-                opacity,
-                transform: [
-                  { scale },
-                  { translateX: shake },
-                  {
-                    translateY: pulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [8, 0],
-                    }),
-                  },
-                ],
-              }}
-              className="w-full max-w-sm">
-              <View
-                style={{
-                  backgroundColor:
-                    feedback?.status === 'success'
-                      ? isDark
-                        ? '#0d1b11'
-                        : '#eef7ef'
-                      : isDark
-                        ? '#2a1111'
-                        : '#fff0f0',
-                  borderColor:
-                    feedback?.status === 'success'
-                      ? isDark
-                        ? '#2b5137'
-                        : '#b7e2b7'
-                      : isDark
-                        ? '#6e2c2c'
-                        : '#f3bcbc',
-                }}
-                className="overflow-hidden rounded-[34px] border px-6 py-8 shadow-soft">
-                <View className="items-center">
-                  <Animated.View
-                    style={{
-                      width: 92,
-                      height: 92,
-                      borderRadius: 999,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      backgroundColor: feedback?.status === 'success' ? '#006400' : '#b91c1c',
-                      transform: [
-                        {
-                          scale: pulse.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.98, 1.04],
-                          }),
-                        },
-                      ],
-                    }}>
-                    <MaterialCommunityIcons
-                      name={feedback?.status === 'success' ? 'check' : 'close'}
-                      size={46}
-                      color="#ffffff"
-                    />
-                  </Animated.View>
+        <AppAlertModal
+          visible={Boolean(feedback)}
+          title={feedback?.status === 'success' ? 'Login successful' : 'Login failed'}
+          message={feedback?.message || ''}
+          icon={feedback?.status === 'success' ? 'check' : 'close'}
+          iconTone={feedback?.status === 'success' ? 'success' : 'error'}
+          confirmLabel={feedback?.status === 'success' ? 'Great' : 'Okay'}
+          confirmVariant={feedback?.status === 'success' ? 'primary' : 'danger'}
+          onConfirm={() => setFeedback(null)}
+          onCancel={() => setFeedback(null)}
+          showActions
+        />
 
-                  <Text
-                    style={{ color: isDark ? '#ffffff' : '#1A1A1A' }}
-                    className="mt-6 text-center text-2xl font-bold">
-                    {feedback?.status === 'success' ? 'Login successful' : 'Login failed'}
-                  </Text>
-                  <Text
-                    style={{ color: isDark ? '#d8e6db' : '#4f6655' }}
-                    className="mt-3 text-center text-base leading-6">
-                    {feedback?.message}
-                  </Text>
-                </View>
-              </View>
-            </Animated.View>
-          </View>
-        </Modal>
+        <AppAlertModal
+          visible={otpNoticeVisible}
+          title="Code sent"
+          message={`A verification code has been sent to ${otpEmail || identifier.trim()}.`}
+          icon="clock-outline"
+          iconTone="info"
+          confirmLabel="Continue"
+          confirmVariant="primary"
+          onConfirm={() => setOtpNoticeVisible(false)}
+          onCancel={() => setOtpNoticeVisible(false)}
+          showActions={false}
+        />
+
+        <OTPModal
+          visible={otpVisible}
+          email={otpEmail}
+          onVerify={handleVerifyLoginOtp}
+          onCancel={handleCancelLoginOtp}
+          onResend={handleResendLoginOtp}
+          loading={loading}
+          resendLoading={otpResendLoading}
+          error={otpError}
+          demoOTP={otpDemoCode}
+          title="Verify login"
+          description="Enter the code sent to"
+          buttonLabel="Verify and login"
+        />
 
         <FormScrollProvider scrollRef={scrollRef} extraOffset={120}>
           <ScrollView
@@ -341,7 +390,10 @@ export default function LoginScreen() {
                       className="w-full"
                       title="Create student account"
                       variant="secondary"
-                      onPress={() => router.push('/register')}
+                      onPress={() => {
+                        resetLoginForm();
+                        router.push('/register');
+                      }}
                     />
                   </View>
                 </Card>

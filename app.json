@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chuka University App",
     "slug": "chuka-university-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "chukaapp",
@@ -12,14 +12,29 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.anonymous.chukauniversityapp",
+      "ndkVersion": "25.2.9519653",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0f2f15",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/adaptive-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.chukauniversityapp"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -27,10 +42,11 @@
     },
     "plugins": [
       "expo-router",
+      "expo-updates",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#f4f7f5",
@@ -44,10 +60,21 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bc450564-74ed-4424-9b98-c56aeaf8f1c7",
+      "fallbackToCacheTimeout": 0
+    },
     "extra": {
-      "apiBaseUrl": "https://chuka-backend.onrender.com/api",
-      "supabaseUrl": "https://xgbnbaiucjxsxkwbmoih.supabase.co",
-      "supabaseAnonKey": "sb_publishable_YgBoefQwI7e4s5bMGTbIwg_mWeu50R7"
+      "apiBaseUrl": "https://chuka-backend.sethtech.deno.net/api",
+      "supabaseUrl": "https://mftyhqblkuniccesnurw.supabase.co",
+      "supabaseAnonKey": "sb_publishable_YEyYzaS6Xbhe-Kjf6om_3w_a92crokS",
+      "router": {},
+      "eas": {
+        "projectId": "bc450564-74ed-4424-9b98-c56aeaf8f1c7"
+      }
     }
   }
 }

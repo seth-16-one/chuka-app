@@ -51,12 +51,25 @@ export function OTPModal({
   const [otp, setOtp] = useState('');
   const [attempts, setAttempts] = useState(0);
   const [localError, setLocalError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const otpInputRef = useRef<TextInput | null>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Animation values
   const slideAnim = useRef(new Animated.Value(visible ? 0 : 1)).current;
   const opacityAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
 
   useEffect(() => {
+    if (focusTimerRef.current) {
+      clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = null;
+    }
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = null;
+    }
+
     if (visible) {
       // Show modal - slide up
       Animated.parallel([
@@ -75,6 +88,13 @@ export function OTPModal({
       setOtp('');
       setAttempts(0);
       setLocalError(null);
+      requestAnimationFrame(() => {
+        scrollToOtp(false);
+        focusTimerRef.current = setTimeout(() => {
+          otpInputRef.current?.focus();
+          scrollToOtp(true);
+        }, 260);
+      });
     } else {
       // Hide modal - slide down
       Animated.parallel([
@@ -93,6 +113,19 @@ export function OTPModal({
       Keyboard.dismiss();
     }
   }, [visible, slideAnim, opacityAnim]);
+
+  useEffect(() => {
+    if (!visible) {
+      return undefined;
+    }
+
+    const keyboardEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const subscription = Keyboard.addListener(keyboardEvent, () => {
+      scrollToOtp(true);
+    });
+
+    return () => subscription.remove();
+  }, [visible]);
 
   const handleVerify = async () => {
     if (otp.length !== 6) {
@@ -120,10 +153,29 @@ export function OTPModal({
     return null;
   }
 
+  const scrollToOtp = (animated = true) => {
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (scrollRef.current && otpInputRef.current) {
+          scrollRef.current.scrollTo({ y: 180, animated });
+
+          scrollTimerRef.current = setTimeout(() => {
+            scrollRef.current?.scrollTo({ y: 180, animated: false });
+          }, 120);
+        }
+      });
+    });
+  };
+
   return (
     <Animated.View
       style={[
         {
+          flex: 1,
           position: 'absolute',
           top: 0,
           left: 0,
@@ -152,17 +204,30 @@ export function OTPModal({
             borderTopLeftRadius: 32,
             borderTopRightRadius: 32,
             paddingHorizontal: 24,
-            paddingTop: 24,
-            paddingBottom: 32,
-            maxHeight: '86%',
+            paddingTop: 18,
+            paddingBottom: 40,
+            maxHeight: '90%',
+            minHeight: '58%',
+            width: '100%',
+            shadowColor: '#000000',
+            shadowOpacity: 0.18,
+            shadowRadius: 24,
+            elevation: 18,
           },
         ]}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 32 : 0}
+          style={{ flex: 1 }}>
           <ScrollView
+            ref={scrollRef}
             scrollEnabled
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+            automaticallyAdjustKeyboardInsets
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag">
+            <View className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-black/15 dark:bg-white/15" />
+
             {/* Close Button */}
             <View className="flex-row justify-end mb-4">
               <Pressable onPress={onCancel} hitSlop={12}>
@@ -240,11 +305,13 @@ export function OTPModal({
                 Verification Code
               </Text>
               <TextInput
+                ref={otpInputRef}
                 maxLength={6}
                 keyboardType="number-pad"
                 placeholder="000000"
                 value={otp}
                 onChangeText={setOtp}
+                onFocus={() => scrollToOtp()}
                 style={{
                   backgroundColor: isDark ? '#0d1b11' : '#ffffff',
                   borderColor: isDark ? '#2b5137' : '#d1d5db',
@@ -260,6 +327,7 @@ export function OTPModal({
                 }}
                 editable={!loading}
                 selectTextOnFocus
+                returnKeyType="done"
               />
             </View>
 

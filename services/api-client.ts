@@ -7,12 +7,23 @@ const EXPO_EXTRA = (Constants.expoConfig?.extra ?? {}) as {
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   EXPO_EXTRA.apiBaseUrl ||
-  'https://chuka-backend.onrender.com/api';
+  'https://chuka-backend.sethtech.deno.net/api';
 const TOKEN_KEY = 'auth_token';
+
+function normalizeApiBaseUrl(baseUrl: string) {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+}
+
+const AUTH_API_BASE_URL = normalizeApiBaseUrl(API_BASE_URL);
 
 type RequestMethod = 'GET' | 'POST' | 'PUT';
 
 class APIClient {
+  async getStoredAuthToken(): Promise<string | null> {
+    return safeStorage.getItem(TOKEN_KEY);
+  }
+
   private async request<T>(
     path: string,
     options: {
@@ -23,7 +34,7 @@ class APIClient {
     } = {}
   ): Promise<T> {
     const token = await safeStorage.getItem(TOKEN_KEY);
-    const url = new URL(`${API_BASE_URL}${path}`);
+    const url = new URL(`${AUTH_API_BASE_URL}${path}`);
     const controller = new AbortController();
     const timeoutMs = options.timeoutMs ?? 10000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -66,7 +77,7 @@ class APIClient {
         throw new Error('Request timed out. Please check your connection and try again.');
       }
 
-      const apiHost = API_BASE_URL.replace(/\/api\/?$/, '');
+      const apiHost = AUTH_API_BASE_URL.replace(/\/api\/?$/, '');
       throw new Error(
         error instanceof Error
           ? error.message

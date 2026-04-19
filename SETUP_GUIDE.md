@@ -105,9 +105,9 @@ The frontend has been updated to use your Node.js backend:
    - Go to **Variables** tab
    - Add these from your `.env` file:
      ```
-     SUPABASE_URL=https://xxxxx.supabase.co
-     SUPABASE_ANON_KEY=eyJhbGc...
-     SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+     SUPABASE_URL=https://your-project.supabase.co
+     SUPABASE_ANON_KEY=your-publishable-key
+     SUPABASE_SERVICE_ROLE_KEY=your-secret-key
      EMAIL_USER=your-gmail@gmail.com
      EMAIL_PASSWORD=your-app-password
      JWT_SECRET=your-secret-key-min-32-chars
@@ -124,11 +124,11 @@ The frontend has been updated to use your Node.js backend:
    - Copy the public domain from Railway
    - Example: `https://chuka-backend-prod.railway.app`
 
-### Option B: Deploy to Render
+### Option B: Deploy to Deno Deploy
 
 1. **Create Render Account**
    ```
-   https://render.com
+   https://console.deno.com
    ```
 
 2. **Create New Web Service**
@@ -136,19 +136,21 @@ The frontend has been updated to use your Node.js backend:
    - Select deployed branch
 
 3. **Configure Settings**
-   - Build command: `npm run build`
-   - Start command: `npm start`
+   - Runtime preset: `No Preset`
+   - Install command: `npm install`
+   - Entry point: `src/server.js`
+   - Runtime working directory: leave blank or `.` 
    - Environment: Add variables from Step 4 above
 
 4. **Deploy**
-   - Render will deploy automatically
+   - Deno will deploy automatically
    - Get your service URL when ready
 
 ### Option C: Run Locally (for testing)
 
 ```bash
 # Terminal: Navigate to backend folder
-cd c:\Projects\chuka-app-backend
+cd c:\Projects\chuka-app\chuka-backend
 
 # Install dependencies
 npm install
@@ -160,7 +162,7 @@ cp .env.example .env
 # Start development server
 npm run dev
 
-# Server runs on: https://chuka-backend.onrender.com
+# Server runs on: https://chuka-backend.sethtech.deno.net
 ```
 
 ---
@@ -180,14 +182,14 @@ Edit `app.json` or create `.env.local`:
     ]
   },
   "extra": {
-    "apiURL": "https://chuka-backend.onrender.com/api"
+    "apiURL": "https://chuka-backend.sethtech.deno.net/api"
   }
 }
 ```
 
 ```bash
 # Option 2: Create .env file in frontend root
-EXPO_PUBLIC_API_URL=https://chuka-backend.onrender.com/api
+EXPO_PUBLIC_API_URL=https://chuka-backend.sethtech.deno.net/api
 ```
 
 ---
