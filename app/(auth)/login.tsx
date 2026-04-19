@@ -6,7 +6,6 @@ import {
   Animated,
   Easing,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -24,11 +23,15 @@ import { Input } from '@/components/ui/input';
 import { OTPModal } from '@/components/ui/otp-modal';
 import apiClientService from '@/services/api-client';
 import { createSessionFromTokens, getDashboardPath, toUserProfile } from '@/services/auth';
+import { saveUserSession } from '@/services/session-storage';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function LoginScreen() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const session = useAuthStore((state) => state.session);
+  const profileState = useAuthStore((state) => state.profile);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [identifier, setIdentifier] = useState('');
@@ -195,6 +198,14 @@ export default function LoginScreen() {
     return () => clearTimeout(timer);
   }, [feedback, opacity, router, scale, setAuth, shake]);
 
+  useEffect(() => {
+    if (!isHydrated || !session || !profileState) {
+      return;
+    }
+
+    router.replace(getDashboardPath(profileState.role) as never);
+  }, [isHydrated, profileState, router, session]);
+
   async function handleVerifyLoginOtp(otpCode: string) {
     try {
       setLoading(true);
@@ -204,6 +215,7 @@ export default function LoginScreen() {
       const session = createSessionFromTokens(profile, response.token, response.refreshToken);
 
       setAuth(session, profile);
+      await saveUserSession({ session, profile });
       pendingAuth.current = { session, profile, next };
       resetLoginForm();
       setOtpVisible(false);

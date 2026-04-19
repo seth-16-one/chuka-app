@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { apiClient } from '@/services/api-client';
 import { createSessionFromTokens, toUserProfile } from '@/services/auth';
 import { isSupabaseReady, supabase } from '@/services/supabase';
+import { loadUserSession } from '@/services/session-storage';
 import { useAuthStore } from '@/store/auth-store';
 
 export function useAuthBootstrap() {
@@ -22,6 +23,35 @@ export function useAuthBootstrap() {
             setHydrated(true);
           }
           return;
+        }
+
+        const storedUserSession = await loadUserSession();
+        if (storedUserSession?.session && active) {
+          const storedProfile =
+            storedUserSession.profile ??
+            (storedUserSession.session.user
+              ? {
+                  id: storedUserSession.session.user.id,
+                  fullName:
+                    storedUserSession.session.user.user_metadata?.full_name ||
+                    storedUserSession.session.user.email ||
+                    '',
+                  email: storedUserSession.session.user.email || '',
+                  role: storedUserSession.session.user.user_metadata?.role || 'student',
+                  regNumber: storedUserSession.session.user.user_metadata?.reg_number,
+                  staffNumber: storedUserSession.session.user.user_metadata?.staff_number,
+                  department: storedUserSession.session.user.user_metadata?.department,
+                  phone: storedUserSession.session.user.user_metadata?.phone,
+                  bio: storedUserSession.session.user.user_metadata?.bio,
+                  avatarUrl: storedUserSession.session.user.user_metadata?.avatar_url,
+                }
+              : null);
+
+          if (storedProfile) {
+            setAuth(storedUserSession.session, storedProfile);
+            setHydrated(true);
+            return;
+          }
         }
 
         if (isSupabaseReady && supabase) {

@@ -1,53 +1,51 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+export const COLORS = {
+  primary: '#006400',
+  secondary: '#228B22',
+  background: '#F5F5F5',
+  white: '#FFFFFF',
+  black: '#1A1A1A',
+  gray: '#888888',
+};
 
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+export const colors = {
+  ...COLORS,
+  chuka: {
+    50: '#edf8ed',
+    100: '#d9f0d9',
+    200: '#b7e2b7',
+    300: '#8fce8f',
+    400: '#5fad5f',
+    500: '#228B22',
+    600: '#1e7a1e',
+    700: '#0f670f',
+    800: '#006400',
+    900: '#004d00',
+  },
+  surface: '#F5F5F5',
+  surfaceAlt: '#eaf2ea',
+  ink: '#1A1A1A',
+  muted: '#888888',
+  border: '#d7e2d7',
+  danger: '#be2e2e',
+  warning: '#b9770e',
+  success: '#1f8f4e',
+};
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: colors.ink,
+    background: colors.surface,
+    tint: colors.chuka[800],
+    icon: colors.muted,
+    tabIconDefault: colors.muted,
+    tabIconSelected: colors.chuka[800],
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: colors.white,
+    background: '#07140a',
+    tint: colors.chuka[200],
+    icon: '#9fb4a5',
+    tabIconDefault: '#7d8f83',
+    tabIconSelected: colors.chuka[200],
   },
 };
-
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});

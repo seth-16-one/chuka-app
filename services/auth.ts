@@ -3,7 +3,7 @@ import apiClientService from './api-client';
 import { UserProfile } from './types';
 
 export function getDashboardPath(_role: UserProfile['role']) {
-  return '/dashboard';
+  return _role === 'lecturer' || _role === 'admin' ? '/teacher-home' : '/student-home';
 }
 
 export function toUserProfile(user: any): UserProfile {
@@ -18,6 +18,9 @@ export function toUserProfile(user: any): UserProfile {
     phone: user.phone,
     bio: user.bio,
     avatarUrl: user.avatarUrl,
+    feeBalanceCents: user.feeBalanceCents ?? user.fee_balance_cents ?? null,
+    feesCleared: user.feesCleared ?? user.fees_cleared ?? null,
+    lastPaymentAt: user.lastPaymentAt ?? user.last_payment_at ?? null,
   };
 }
 

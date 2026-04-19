@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chuka University App",
     "slug": "chuka-university-app",
-    "version": "1.0.1",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "chukaapp",
@@ -17,16 +17,8 @@
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES",
-        "READ_MEDIA_VIDEO",
-        "READ_MEDIA_AUDIO",
-        "CAMERA",
-        "RECORD_AUDIO",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "ACCESS_COARSE_LOCATION"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#0f2f15",
@@ -44,6 +36,12 @@
       "expo-router",
       "expo-updates",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Chuka University App to access your location for attendance, campus services, and nearby features."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -54,7 +52,9 @@
             "backgroundColor": "#0f2f15"
           }
         }
-      ]
+      ],
+      "expo-video",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

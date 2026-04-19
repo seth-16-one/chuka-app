@@ -1,5 +1,8 @@
 import Constants from 'expo-constants';
+import { clearAuthTokens, loadAuthTokens, saveAuthTokens } from './auth-token-storage';
 import { safeStorage } from './safe-storage';
+import { loadUserSession } from './session-storage';
+import type { DeviceSession, FinanceSummary, StaffMaterial } from './types';
 
 const EXPO_EXTRA = (Constants.expoConfig?.extra ?? {}) as {
   apiBaseUrl?: string;
@@ -8,7 +11,6 @@ const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   EXPO_EXTRA.apiBaseUrl ||
   'https://chuka-backend.sethtech.deno.net/api';
-const TOKEN_KEY = 'auth_token';
 
 function normalizeApiBaseUrl(baseUrl: string) {
   const trimmed = baseUrl.replace(/\/+$/, '');
@@ -21,7 +23,53 @@ type RequestMethod = 'GET' | 'POST' | 'PUT';
 
 class APIClient {
   async getStoredAuthToken(): Promise<string | null> {
-    return safeStorage.getItem(TOKEN_KEY);
+    const tokens = await loadAuthTokens();
+    if (tokens?.accessToken) {
+      return tokens.accessToken;
+    }
+
+    const storedSession = await loadUserSession();
+    const sessionToken = storedSession?.session?.access_token || null;
+    if (sessionToken) {
+      return sessionToken;
+    }
+
+    const legacyToken = await safeStorage.getItem('auth_token');
+    if (!legacyToken) {
+      return null;
+    }
+
+    await saveAuthTokens({ accessToken: legacyToken, refreshToken: legacyToken });
+    await safeStorage.removeItem('auth_token');
+    return legacyToken;
+  }
+
+  private async refreshAuthToken(): Promise<string | null> {
+    const tokens = await loadAuthTokens();
+    const refreshToken = tokens?.refreshToken;
+    if (!refreshToken) {
+      return null;
+    }
+
+    const response = await fetch(`${AUTH_API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || typeof data?.token !== 'string') {
+      return null;
+    }
+
+    await saveAuthTokens({
+      accessToken: data.token,
+      refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : refreshToken,
+    });
+
+    return data.token;
   }
 
   private async request<T>(
@@ -31,9 +79,10 @@ class APIClient {
       body?: Record<string, unknown>;
       params?: Record<string, string | number | undefined>;
       timeoutMs?: number;
-    } = {}
+    } = {},
+    allowRetry: boolean = true
   ): Promise<T> {
-    const token = await safeStorage.getItem(TOKEN_KEY);
+    const token = await this.getStoredAuthToken();
     const url = new URL(`${AUTH_API_BASE_URL}${path}`);
     const controller = new AbortController();
     const timeoutMs = options.timeoutMs ?? 10000;
@@ -59,7 +108,14 @@ class APIClient {
 
       if (!response.ok) {
         if (response.status === 401) {
-          await safeStorage.removeItem(TOKEN_KEY);
+          if (allowRetry) {
+            const refreshed = await this.refreshAuthToken();
+            if (refreshed) {
+              return this.request<T>(path, options, false);
+            }
+          }
+
+          await clearAuthTokens();
         }
 
         const message =
@@ -152,7 +208,7 @@ class APIClient {
     });
 
     if (data.token) {
-      await safeStorage.setItem(TOKEN_KEY, data.token);
+      await saveAuthTokens({ accessToken: data.token, refreshToken: data.refreshToken || data.token });
     }
 
     return data;
@@ -193,7 +249,7 @@ class APIClient {
     });
 
     if (data.token) {
-      await safeStorage.setItem(TOKEN_KEY, data.token);
+      await saveAuthTokens({ accessToken: data.token, refreshToken: data.refreshToken || data.token });
     }
 
     return data;
@@ -224,6 +280,79 @@ class APIClient {
     return this.request('/auth/me');
   }
 
+  async getFinanceSummary(): Promise<{ summary: FinanceSummary }> {
+    return this.request('/finance/summary');
+  }
+
+  async listStaffMaterials(): Promise<{ materials: StaffMaterial[] }> {
+    return this.request('/staff/materials');
+  }
+
+  async uploadStaffMaterial(payload: {
+    title: string;
+    courseCode: string;
+    audience: string;
+    summary: string;
+    fileLabel: string;
+    storagePath?: string;
+    mimeType?: string;
+    originalFileName?: string;
+    fileSize?: number;
+    fileBase64?: string;
+  }): Promise<{ material: StaffMaterial }> {
+    return this.request('/staff/materials', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
+  async uploadStudentDocument(payload: {
+    documentType: 'gatepass' | 'exam-card' | 'transcript';
+    fileName: string;
+    mimeType?: string;
+    fileSize?: number;
+    feesCleared: boolean;
+    fileBase64: string;
+  }): Promise<{ document: any }> {
+    return this.request('/student/documents', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
+  async listStudentDocuments(): Promise<{ documents: any[] }> {
+    return this.request('/student/documents');
+  }
+
+  async createStaffAnnouncement(payload: {
+    title: string;
+    body: string;
+    audience: string;
+    priority?: 'normal' | 'high';
+  }): Promise<{ announcement: any }> {
+    return this.request('/staff/announcements', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
+  async createStaffTimetableEntry(payload: {
+    audience: string;
+    day: string;
+    time: string;
+    title: string;
+    venue: string;
+    courseCode: string;
+    lecturer?: string;
+    status?: string;
+    dayOrder?: number;
+  }): Promise<{ timetableEntry: any }> {
+    return this.request('/staff/timetable', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
   async updateProfile(updates: {
     phone?: string;
     bio?: string;
@@ -237,7 +366,23 @@ class APIClient {
   }
 
   async logout(): Promise<void> {
-    await safeStorage.removeItem(TOKEN_KEY);
+    await clearAuthTokens();
+  }
+
+  async getDeviceSessions(): Promise<{ sessions: DeviceSession[] }> {
+    return this.request('/auth/sessions');
+  }
+
+  async revokeDeviceSession(sessionId: string): Promise<{ success: boolean }> {
+    return this.request(`/auth/sessions/${sessionId}/revoke`, {
+      method: 'POST',
+    });
+  }
+
+  async revokeOtherDeviceSessions(): Promise<{ success: boolean }> {
+    return this.request('/auth/sessions/revoke-others', {
+      method: 'POST',
+    });
   }
 
   async getChatRooms(): Promise<{ rooms: any[] }> {
